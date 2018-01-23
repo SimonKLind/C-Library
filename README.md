@@ -21,7 +21,7 @@ As of this writing there are the following pieces in this library:
     - A Last-In-First-Out stack
     
    - LinkedList.h
-    - A First-In-First-Out Linked List
+      - A First-In-First-Out Linked List
     
 # Example Usage
 To generate code for e.g an array to hold double
