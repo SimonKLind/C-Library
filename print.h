@@ -68,7 +68,7 @@ static inline uint32_t uintlog10(uint32_t val) {
             val >= 10        ? 1 : 0;
 }
 
-static inline double pow10(uint32_t e) {
+static inline double pow_10(uint32_t e) {
     return e == 0 ? 1 :
             e == 1 ? 10 :
             e == 2 ? 100 :
@@ -100,7 +100,7 @@ uint32_t parse_double(unsigned char *buf, double val) {
     u = val;
     uint32_t e = uintlog10(u);
     exponent += e;
-    val /= pow10(e);
+    val /= pow_10(e);
     u = val;
     buf[pos++] = u%10 + '0';
     buf[pos++] = '.';
