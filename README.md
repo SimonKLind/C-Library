@@ -14,6 +14,9 @@ As of this writing there are the following pieces in this library:
   - String.h
     - A String container with short-string optimization, always null-terminated
     
+  - print.h
+    - A more basic variant of printf. I mostly added this for fun, but also to avoid the excessive bulk of printf
+    
   - Array.h
     - A dynamic Array
     
