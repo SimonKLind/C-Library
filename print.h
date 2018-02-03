@@ -1,7 +1,7 @@
 #ifndef PRINT_H
 #define PRINT_H
 
-#include <syscalls.h>
+#include <std/syscalls.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -20,7 +20,7 @@ static inline void reverse(unsigned char *start, unsigned char *end){
     } 
 }
 
-uint32_t parse_int(unsigned char *buf, long val) {
+static inline uint32_t parse_int(unsigned char *buf, long val) {
     uint32_t pos = 0;
     uint8_t sign = *(unsigned long*)&val >> 63;
     if(sign) {
@@ -45,7 +45,7 @@ static inline uint32_t parse_uint(unsigned char *buf, unsigned long val) {
     return pos;
 }
 
-uint32_t parse_uint_hex(unsigned char *buf, unsigned long val) {
+static inline uint32_t parse_uint_hex(unsigned char *buf, unsigned long val) {
     static unsigned char hexdigits[16] = "0123456789ABCDEF";
     uint32_t pos = 0;
     do {
@@ -70,41 +70,95 @@ static inline uint32_t uintlog10(uint32_t val) {
 
 const double pow_10[10] = { 1.0, 0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001, 0.0000001, 0.00000001, 0.000000001 };
 
+// Prints leading zeroes after decimal point, as they won't be included when parsed as uint
+static inline uint32_t print_leading_zero(unsigned char *buf, double val) {
+    uint32_t pos = 0;
+    if(val < 1e-8) buf[pos++] = '0';
+    if(val < 1e-7) buf[pos++] = '0';
+    if(val < 1e-6) buf[pos++] = '0';
+    if(val < 1e-5) buf[pos++] = '0';
+    if(val < 1e-4) buf[pos++] = '0';
+    if(val < 1e-3) buf[pos++] = '0';
+    if(val < 1e-2) buf[pos++] = '0';
+    if(val < 1e-1) buf[pos++] = '0';
+    return pos;
+}
+
+// This is identical to parse_uint, but wont print the low zeroes. I.E skips trailing zeroes in floating-point numbers
+static inline uint32_t parse_uint_no_zerotrail(unsigned char *buf, uint32_t val) {
+    uint32_t pos = 0;
+    while(!(val%10)) val /= 10;
+    while(val) {
+        buf[pos++] = (unsigned char)((val%10) + '0');
+        val /= 10;
+    }
+    reverse(buf, buf+pos-1);
+    return pos;
+}
+
 uint32_t parse_double(unsigned char *buf, double val) {
     uint32_t pos = 0;
-    uint8_t sign = *(unsigned long*)&val >> 63;
+    uint8_t sign = val < 0.0;
     if(sign) {
         buf[pos++] = '-';
         val = -val;
     }
-    int32_t exponent = 0;
-    uint32_t u;
-    while(val < 1.0) {
-        val *= 1000000000.0;
-        exponent -= 9;
-    } 
-    while(val >= 1.0e10) {
-        val *= 0.000000001;
-        exponent += 9;
-    }
-    u = val;
-    uint32_t e = uintlog10(u);
-    exponent += e;
-    val *= pow_10[e];
-    u = val;
-    buf[pos++] = u%10 + '0';
-    buf[pos++] = '.';
-    val -= u;
-    val *= 1000000000.0;
-    u = val;
-    pos += parse_uint(buf+pos, u);
-    if(exponent) {
-        buf[pos++] = 'e';
-        if(*(uint32_t*)&exponent >> 31){
-            buf[pos++] = '-';
-            exponent = -exponent;
+    if(val >= 1e10) {   // Handle numbers with large positive exponent
+        uint32_t exponent = 0;
+        while(val >= 1e10) {
+            exponent += 9;
+            val *= 1e-9;
         }
+        uint32_t int_part = val;
+        uint32_t e = uintlog10(int_part);
+        exponent += e;
+        val *= pow_10[e];
+        int_part = val;
+        val -= int_part;
+        pos += parse_uint(buf+pos, int_part);
+        if(val > 1e-10) {
+            buf[pos++] = '.';
+            pos += print_leading_zero(buf+pos, val);
+            val *= 1e9;
+            uint32_t dec_part = val;
+            pos += parse_uint_no_zerotrail(buf+pos, dec_part);
+        }
+        buf[pos++] = 'e';
         pos += parse_uint(buf+pos, exponent);
+    } else if(val <= 1e-10) {   // Handle numbers with large negative exponent
+        uint32_t exponent = 0;
+        while(val < 1.0) {
+            exponent += 9;
+            val *= 1e9;
+        }
+        uint32_t int_part = val;
+        uint32_t e = uintlog10(int_part);
+        exponent -= e;
+        val *= pow_10[e];
+        int_part = val;
+        val -= int_part;
+        pos += parse_uint(buf+pos, int_part);
+        if(val > 1e-10) {
+            buf[pos++] = '.';
+            pos += print_leading_zero(buf+pos, val);
+            val *= 1e9;
+            uint32_t dec_part = val;
+            pos += parse_uint_no_zerotrail(buf+pos, dec_part);
+        }
+        buf[pos++] = 'e';
+        buf[pos++] = '-';
+        pos += parse_uint(buf+pos, exponent);
+    } else {    // Handle numbers within reasonable range
+        uint32_t int_part = val;
+        val -= int_part;
+        pos += parse_uint(buf+pos, int_part);
+        if(val > 1e-10) {
+            buf[pos++] = '.';
+            pos += print_leading_zero(buf+pos, val);
+            val *= 1e9;
+            uint32_t dec_part = val;
+            pos += parse_uint_no_zerotrail(buf+pos, dec_part);
+        }
     }
     return pos;
 }
@@ -121,24 +175,22 @@ uint32_t parse_double(unsigned char *buf, double val) {
 #define hasmod16(x) haszero16(x ^ 0x2525)
 #define align16(x) (((uintptr_t)x & 1) == 0)
 
-typedef union DuoPtr {
-    unsigned char *c;
-    uint16_t *s;
-    uint32_t *u;
-    uint64_t *l;
-} DuoPtr;
 
-typedef union ConstDuoPtr {
-    const unsigned char *c;
-    const uint16_t *s;
-    const uint32_t *u;
-    const uint64_t *l;
-} ConstDuoPtr;
 
 void print(const char *format, ...) {
     static unsigned char buf[BUFFER_SIZE];
-    DuoPtr _buf;
-    ConstDuoPtr _fmt;
+    union {
+        unsigned char *c;
+        uint16_t *s;
+        uint32_t *u;
+        uint64_t *l;
+    } _buf;
+    union {
+        const unsigned char *c;
+        const uint16_t *s;
+        const uint32_t *u;
+        const uint64_t *l;
+    } _fmt;
     _buf.c = buf;
     _fmt.c = (const unsigned char*)format;
     const unsigned char *str;
