@@ -8,35 +8,7 @@ Most of the data structures are implemented with a *kind of* template-engine usi
 The containers also have foreach loops, they too implemented with macros.
 Everything in here covers only basic functionality.
 
-As of this writing there are the following pieces in this library:
-
-  - Hash.h 
-    - A small collection of hash functions, including implementations of fnv-1a for both 32 and 64 bits, and murmurhash3 for 32 bits.
-    
-  - String.h
-    - A String container with short-string optimization, always null-terminated
-    
-  - print.h
-    - A more basic variant of printf. I mostly added this for fun, but also to avoid the excessive bulk of printf
-    
-  - Array.h
-    - A dynamic Array
-    
-  - Stack.h
-    - A Last-In-First-Out stack
-    
-   - LinkedList.h
-      - A First-In-First-Out Linked List
-    
-# Example Usage
-To generate code for e.g an array to hold double
-  - init_array(double)
-Note: no semicolon needed
-
-To use the foreach loops, again example array of type double
-  - #define lambda(arg) // whatever you want your lambda to do with arg
-  - array_foreach(double, array, lambda)
-  - Optionally #undef lambda
+----
     
 # TODO
   - Double Linked List
