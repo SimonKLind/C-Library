@@ -1,89 +1,87 @@
 #ifndef STRING_H
 #define STRING_H
 
-#include <stddef.h>
-#include <memory.h>
-#include <syscalls.h>
 #include <stdint.h>
+#include <std/memory.h>
+#include <std/syscalls.h>
+#include <std/string_utils.h>
 #include <std/Hash.h>
 
-size_t strlen(const char *str);
-int strcmp(const char *lhs, const char *rhs);
-
-#define BASE_LENGTH 16
-
 typedef struct String {
-    char base[BASE_LENGTH];
-    char *str;
-    uint32_t length;
-    uint32_t cap;
+    union {
+        struct {
+            char *long_str;
+            uint64_t cap;
+        };
+        char short_str[16];
+    };
+    uint64_t length: 63;
+    uint8_t flag: 1;
 } String;
 
 static inline String string_new() {
-    return (String) { {0}, 0, 0, BASE_LENGTH };
+    return (String) { 0 };
 }
 
 static inline char* string_chars(String *self) {
-    return self->str ? self->str : self->base;
+    return self->flag ? self->long_str : self->short_str;
 }
 
 static inline void string_print(const String *self) {
-    write(STDOUT, self->str ? self->str : self->base, self->length);
-}
-
-static inline int string_strcmp(const String *lhs, const String *rhs) {
-    return strcmp(lhs->str ? lhs->str : lhs->base, rhs->str ? rhs->str : rhs->base);
+    write(STDOUT, self->flag ? self->long_str : self->short_str, self->length);
 }
 
 static inline uint32_t string_hash(const String *self) {
-    return murmur(self->str ? self->str : self->base, self->length);
+    return murmur(self->flag ? self->long_str : self->short_str, self->length);
 }
 
 static inline void string_free(String *self) {
-    if(self->str) free(self->str);
+    if(self->flag) free(self->long_str);
+    *self = (String) { 0 };
 }
 
 String string_copy(const String *other) {
-    String str = { {0}, 0, other->length, other->cap };
-    if(other->str) {
-        str.str = (char*) calloc(other->cap, 1);
-        memcpy(str.str, other->str, other->length);
-    } else {
-        memcpy(str.base, other->base, other->length);
-    }
+    if(!other->flag) return *other;
+    String str;
+    str.length = other->length;
+    str.flag = other->flag;
+    str.cap = other->cap;
+    str.long_str = (char*) calloc(str.cap, 1);
+    copy(str.long_str, other->long_str, str.length);
     return str;
 }
 
 String string_from_chars(const char *chars) {
-    const uint32_t length = strlen(chars);
-    uint32_t cap = BASE_LENGTH;
-    while(cap <= length) cap <<= 1;
-    String str = { {0}, 0, length, cap };
-    if(cap == BASE_LENGTH) {
-        memcpy(str.base, chars, length);
+    String str = { 0 };
+    str.length = string_length(chars);
+    if(str.length < 16) {
+        copy(str.short_str, chars, str.length);
     } else {
-        str.str = (char*) calloc(cap, 1);
-        memcpy(str.str, chars, length);
+        str.cap = 32;
+        str.flag = 1;
+        while(str.cap <= str.length) str.cap <<= 1;
+        str.long_str = (char*) calloc(str.cap, 1);
+        copy(str.long_str, chars, str.length);
     }
     return str;
 }
 
 String string_from_file(const char *filename) {
     int fd = open(filename, O_RDONLY);
-    String str = { {0}, 0, 0, BASE_LENGTH };
+    String str = { 0 };
     if(fd > 0) {
         str.length = lseek(fd, 0, END);
         lseek(fd, 0, BEG);
-        while(str.cap <= str.length) str.cap <<= 1;
-        if(str.cap == BASE_LENGTH) {
-            read(fd, str.base, str.length);
+        if(str.length < 16) {
+            read(fd, str.short_str, str.length);
         } else {
-            str.str = (char*) calloc(str.cap, 1);
-            read(fd, str.str, str.length);
+            str.cap = 32;
+            str.flag = 1;
+            while(str.cap <= str.length) str.cap <<= 1;
+            str.long_str = (char*) calloc(str.cap, 1);
+            read(fd, str.long_str, str.length);
         }
         close(fd);
-    } else {
-        printf("Error opening %s, returning empty string!\n", filename);
     }
     return str;
 }
@@ -91,38 +89,100 @@ String string_from_file(const char *filename) {
 void string_write_to_file(const String *self, const char *filename) {
     int fd = open(filename, O_WRONLY | O_TRUNC | O_CREAT, 0777);
     if(fd > 0) {
-        write(fd, self->str ? self->str : self->base, self->length);
+        write(fd, self->flag ? self->long_str : self->short_str, self->length);
         close(fd);
-    } else {
-        printf("Error opening %s!", filename);
     }
 }
 
-void string_reserve(String *self, uint32_t size) {
-    const char str = self->str != 0;
-    char *old = str ? self->str : self->base;
+void string_reserve_short(String *self, const uint64_t size) {
+    uint64_t cap = 32;
+    while(cap <= size) cap <<= 1;
+    char *new_str = (char*) calloc(cap, 1);
+    copy(new_str, self->short_str, self->length);
+    self->long_str = new_str;
+    self->cap = cap;
+    self->flag = 1;
+}
+
+void string_reserve_long(String *self, const uint64_t size) {
+    char *old = self->long_str;
     while(self->cap <= size) self->cap <<= 1;
-    self->str = (char*) calloc(self->cap, 1);
-    memcpy(self->str, old, self->length);
-    if(str) free(old);
+    self->long_str = (char*) calloc(self->cap, 1);
+    copy(self->long_str, old, self->length);
+    free(old);
 }
 
 void string_append_chars(String *self, const char *chars) {
-    const uint32_t length = strlen(chars);
-    if(self->length + length >= self->cap) string_reserve(self, self->length+length);
-    memcpy((self->str ? self->str : self->base) + self->length, chars, length);
+    const uint64_t length = string_length(chars);
+    if(self->flag) {
+        if(self->length + length >= self->cap) string_reserve_long(self, self->length + length);
+        copy(self->long_str + self->length, chars, length);
+    } else {
+        if(self->length + length >= 16) {
+            string_reserve_short(self, self->length + length);
+            copy(self->long_str + self->length, chars, length);
+        } else {
+            copy(self->short_str + self->length, chars, length);
+        }
+    }
     self->length += length;
 }
 
 void string_append_string(String *self, const String *other) {
-    if(self->length + other->length >= self->cap) string_reserve(self, self->length+other->length);
-    memcpy((self->str ? self->str : self->base) + self->length, other->str ? other->str : other->base, other->length);
+    switch(self->flag | (other->flag << 1)) {
+        case 3: // Both long
+            if(self->length + other->length >= self->cap) string_reserve_long(self, self->length + other->length);
+            copy(self->long_str + self->length, other->long_str, other->length);
+            break;
+        case 2: // Only other long
+            string_reserve_short(self, self->length + other->length);
+            copy(self->long_str + self->length, other->long_str, other->length);
+            break;
+        case 1: // Only self long
+            if(self->length + other->length >= self->cap) string_reserve_long(self, self->length + other->length);
+            copy(self->long_str + self->length, other->short_str, other->length);
+            break;
+        case 0: // Neither long
+            if(self->length + other->length >= 16) {
+                string_reserve_short(self, self->length + other->length);
+                copy(self->long_str + self->length, other->short_str, other->length);
+            } else {
+                copy(self->short_str + self->length, other->short_str, other->length);
+            }
+            break;
+    }
     self->length += other->length;
 }
 
 void string_append(String *self, const char c) {
-    (self->str ? self->str : self->base)[self->length++] = c;
-    if(self->length >= self->cap) string_reserve(self, self->cap);
+    if(self->flag) {
+        if(self->length+1 >= self->cap) string_reserve_long(self, self->cap);
+        self->long_str[self->length++] = c;
+    } else {
+        if(self->length+1 >= 16) {
+            string_reserve_short(self, 16);
+            self->long_str[self->length++] = c;
+        } else {
+            self->short_str[self->length++] = c;
+        }
+    }
+}
+
+static inline uint8_t string_contains_chars(const String *self, const char *chars) {
+    return string_contains(self->flag ? self->long_str : self->short_str, chars);
+}
+
+static inline uint8_t string_contains_string(const String *self, const String *other) {
+    return string_contains(self->flag ? self->long_str : self->short_str, other->flag ? other->long_str : other->short_str);
+}
+
+static inline char string_compare_chars(const String *self, const char *chars) {
+    return string_compare(self->flag ? self->long_str : self->short_str, chars);
+}
+
+static inline int string_compare_string(const String *self, const String *other) {
+    if(self->length != other->length) return self->length - other->length;
+    return string_compare(self->flag ? self->long_str : self->short_str, other->flag ? other->long_str : other->short_str);
 }
 
 #endif

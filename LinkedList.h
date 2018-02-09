@@ -1,7 +1,7 @@
 #ifndef LINKEDLIST_H
 #define LINKEDLIST_H
 
-#include <memory.h>
+#include <std/memory.h>
 #include <stdint.h>
 #include <std/Hash.h>
 
@@ -38,7 +38,7 @@
         return list;    \
     }   \
     \
-    void list_##Type##_push(List_##Type *self, Type item) { \
+    void list_##Type##_push(List_##Type *self, const Type item) { \
         if(self->last) {    \
             self->last->next = (List_##Type##_Node*) calloc(1, sizeof(List_##Type##_Node)); \
             self->last = self->last->next;  \

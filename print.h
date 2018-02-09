@@ -163,21 +163,20 @@ uint32_t parse_double(unsigned char *buf, double val) {
     return pos;
 }
 
-#define haszero64(x) (((x) - 0x0101010101010101UL) & ~(x) & 0x8080808080808080UL)
-#define hasmod64(x) haszero64(x ^ 0x2525252525252525UL)
-#define align64(x) (((uintptr_t)x & 7) == 0)
-
-#define haszero32(x) (((x) - 0x01010101U) & ~(x) & 0x80808080U)
-#define hasmod32(x) haszero32(x ^ 0x25252525U)
-#define align32(x) (((uintptr_t)x & 3) == 0)
-
-#define haszero16(x) (((x) - 0x0101) & ~(x) & 0x8080)
-#define hasmod16(x) haszero16(x ^ 0x2525)
-#define align16(x) (((uintptr_t)x & 1) == 0)
-
-
 
 void print(const char *format, ...) {
+    #define haszero64(x) (((x) - 0x0101010101010101UL) & ~(x) & 0x8080808080808080UL)
+    #define hasmod64(x) haszero64(x ^ 0x2525252525252525UL)
+    #define align64(x) (((uintptr_t)x & 7) == 0)
+
+    #define haszero32(x) (((x) - 0x01010101U) & ~(x) & 0x80808080U)
+    #define hasmod32(x) haszero32(x ^ 0x25252525U)
+    #define align32(x) (((uintptr_t)x & 3) == 0)
+
+    #define haszero16(x) (((x) - 0x0101) & ~(x) & 0x8080)
+    #define hasmod16(x) haszero16(x ^ 0x2525)
+    #define align16(x) (((uintptr_t)x & 1) == 0)
+
     static unsigned char buf[BUFFER_SIZE];
     union {
         unsigned char *c;

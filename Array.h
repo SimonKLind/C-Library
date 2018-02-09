@@ -2,7 +2,7 @@
 #define ARRAY_H
 
 #include <stdint.h>
-#include <memory.h>
+#include <std/memory.h>
 #include <std/Hash.h>
 
 #define init_array(Type)    \
@@ -29,7 +29,7 @@
     \
     static inline Array_##Type array_##Type##_copy(const Array_##Type *other) { \
         Array_##Type arr = { (Type*) calloc(other->cap, sizeof(Type)), other->size, other->cap };   \
-        memcpy(arr.data, other->data, other->size*sizeof(Type));    \
+        copy(arr.data, other->data, other->size*sizeof(Type));    \
         return arr; \
     }   \
     \
@@ -37,11 +37,11 @@
         Type *old = self->data; \
         self->cap <<= 1;    \
         self->data = (Type*) calloc(self->cap, sizeof(Type));   \
-        memcpy(self->data, old, self->size*sizeof(Type));   \
+        copy(self->data, old, self->size*sizeof(Type));   \
         free(old);  \
     }   \
     \
-    static inline void array_##Type##_push(Array_##Type *self, Type item) { \
+    static inline void array_##Type##_push(Array_##Type *self, const Type item) { \
         self->data[self->size++] = item;    \
         if(self->size == self->cap) array_##Type##_expand(self);    \
     }   \

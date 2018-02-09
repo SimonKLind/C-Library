@@ -1,7 +1,7 @@
 #ifndef STACK_H
 #define STACK_H
 
-#include <memory.h>
+#include <std/memory.h>
 #include <stdint.h>
 #include <std/Hash.h>
 
@@ -38,7 +38,7 @@
         return stack;   \
     }   \
     \
-    static inline void stack_##Type##_push(Stack_##Type *self, Type item) { \
+    static inline void stack_##Type##_push(Stack_##Type *self, const Type item) { \
         Stack_##Type##_Node *temp = (Stack_##Type##_Node*) malloc(sizeof(Stack_##Type##_Node));   \
         *temp = (Stack_##Type##_Node) { item, self->first };    \
         self->first = temp; \
