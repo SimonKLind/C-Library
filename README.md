@@ -15,6 +15,14 @@ A small library of C "template" data structures.
 
 [String.h](#stringh)
 
+[string_utils.h](#stringutilsh)
+
+[memory.h](#memoryh)
+
+[print.h](#printh)
+
+[Hash.h](#hashh)
+
 [TODO](#todo)
 
 So this is really just a library of common data structures that i otherwise find myself rewriting all the time.
@@ -368,11 +376,127 @@ I could have gone up to 23, but then I cannot guarantee that it works regardless
             Returns a positive number if second is lexicographically less than first
             
 ----
+
+# string_utils.h
+A small collection of string related functions, works with raw char arrays. This is no functionality that does not already exist in the standard library. 
+I just added this because I enjoy making stuff myself, and to experiment with algorithms.
+    
+    Exposes functions:
+        
+        - string_length(const char*)
+            Returns the length of the char string passed. Assumes the passed string is null-terminated.
+            
+        - string_compare(const char*, const char*)
+            Returns a negative number if first arg is lexicographically less than second arg
+            Returns zero if arguments are equal
+            Returns a positive number if second arg is lexicographically less than first arg
+            Assumes both strings are null-terminated
+            
+        - string_contains(const char*, const char*)
+            Returns true if the pattern specified by the second argument is found within the first arg.
+            Assumes both strings are null-terminated
+            
+----
+
+# memory.h
+I added this mostly to get a small include file containing definitions for the basic memory allocation functions (malloc, calloc, free).
+This header also includes an implementation of a memcpy function.
+
+    Exposes function:
+    
+        - copy(void*, const void*, const size_t)
+            Copies raw contents from the second pointer into the first.
+            Number of bytes copied specified by the second argument.
+            
+----
+
+# print.h
+This header features a small implementation of a printf-like function.
+It can be used exactly like printf, except it implements a different set of type specifiers:
+
+  - %c -> a char
+  - %s -> a char string
+  - %d -> an int
+  - %D -> a long int
+  - %x -> unsigned int, parsed as hex
+  - %X -> unsigned long, parsed as hex
+  - %u -> unsigned int
+  - %U -> unsigned long
+  - %f -> float/double
+  - %% -> %
+  
+  Beware: as of yet i have not implemented any safety in this function. If the message exceeds the buffer size (default 8192) things will go bad...
+  
+        Exposes functions:
+        
+            - print(const char*, ...)
+                The printf-like function described above.
+                
+            - println(const char*, ...)
+                Macro that simply adds a newline to whatever string is passed, since at least I often forgets newlines otherwise
+                
+            - reverse(unsigned char*, unsigned char*)
+                Only really intended to be used within print, but may be useful in other cases anyway...
+                Will reverse the segment of a string bounded by the argument pointers
+                
+            - parse_int(unsigned char*, long)
+                Only really intended to be used within print, but may be useful in other cases anyway...
+                Will parse the passed long to string and append it to the char array.
+                Returns number of characters appended
+                
+            - parse_uint(unsigned char*, unsigned long)
+                Only really intended to be used within print, but may be useful in other cases anyway...
+                Will parse the passed unsigned long to string and append it to the char array.
+                Returns number of characters appended
+                
+            - parse_uint_hex(unsigned char*, unsigned long)
+                Only really intended to be used within print, but may be useful in other cases anyway...
+                Will parse the passed unsigned long to hex string, and append it to the char array
+                Returns number of characters appended
+                
+            - uintlog10(uint32_t)
+                Only really intended to be used within print, but may be useful in other cases anyway...
+                Returns the integer log10 of the 32bit uint passed
+                
+            - print_leading_zero(unsigned char*, double)
+                Only really intended to be used within print, but may be useful in other cases anyway...
+                Appends appropriate number of zeros before the acual digits in the double arg begins.
+                Assumes the double arg < 1.0
+                Returns number of characters appended
+                
+            - parse_uint_no_zerotrail(unsigned char*, uint32_t)
+                Only really intended to be used within print, but may be useful in other cases anyway...
+                Will parse the passed uint32 into string, but will skip the low zeroes, and appends it to the char array
+                Returns the number of characters appended
+                
+            - parse_double(unsigned char*, double)
+                Only really intended to be used within print, but may be useful in other cases anyway...
+                Will parse the passed double to string, and append it to the char array.
+                It will parse a maximum of 9 digits on either side of the decimal point.
+                If the double is greater than 1e10 or less than 1e-10 it will print it using scientific notation with at most 9 decimal places.
+                Returns number of characters appended
+                
+----
+
+# Hash.h
+This header exposes three basic hash functions for generic data.
+
+    Exposes functions:
+    
+        - murmur(const void*, const uint32_t)
+            Returns the murmur3 hash from the raw data in the void pointer.
+            Number of bytes specified by second argument.
+            For the record: this is implemented exactly as Austin Appleby's original implementation, with minor changes to give it my own code-style
+            
+        - fnv_32(const void*, const uint32_t)
+            Returns 32 bit FNV_1a hash from the raw data in the void pointer.
+            Number of bytes specified by second argument.
+            
+        - fnv_64(const void*, const uint32_t)
+            Returns 64 bit FNV_1a hash from the raw data in the void pointer.
+            Number of bytes specified by second argument.
     
 # TODO
-  - Double Linked List
-  - Priority Queue
-  - HashMap
-  - HashSet
   - Some kind of Tree Map
   - Some kind of Tree Set
+  - Make print safe
