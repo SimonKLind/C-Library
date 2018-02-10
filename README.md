@@ -9,6 +9,8 @@ A small library of C "template" data structures.
 
 [Stack.h](#stackh)
 
+[PriorityQueue.h](#priotityqueueh)
+
 [HashMap.h](#hashmaph)
 
 [HashSet.h](#hashseth)
@@ -205,6 +207,67 @@ A last in first out Stack. Pushing and popping will always be O(1). Does not imp
             Type should be the type of element in Stack.
             stack is the stack to iterate over.
             lambda should be a function or lambda taking one parameter of Type.
+            
+----
+
+# PriorityQueue.h
+A priority queue implemented as a min heap. Will keep the minimal element, as determined by the comparison function used, at the top.
+
+    Exposes functions:
+        
+        -init_heap(Type, comp_func)
+            Macro to generate code for Heap_Type, and functions for it. E.h init_heap(int) would generate Heap_int, and functions such as heap_int_new()
+            Type should be the type to be stored in the Heap.
+            comp_func should be a function or macro taking two arguments a, and b of Type and return: negative if a  < b, zero if a == b, positive if a > b
+            
+        - heap_Type_new()
+            Returns an empty Heap_Type
+            
+        - heap_Type_copy(const Heap_Type*)
+            Returns a deep copy of the passed Heap_Type
+            
+        - heap_Type_float(Heap_Type*, uint32_t)
+            Really only intended for use within the heap, the heap will do all the needed floating itself...
+            Has the item specified by the heap-index of the second arg float to its appropriate place in the heap.
+            Note that the heap is indexed from 1 internally
+            
+        - heap_Type_sink(Heap_Type*, uint32_t)
+            Really only intended for use within the heap, the heap will do all the needed sinking itself...
+            Has the item specified by the heap-index of the second arg sink to its appropriate place in the heap.
+            Note that the heap is indexed from 1 internally
+            
+        - heap_Type_reheap(Heap_Type*)
+            If for some reason you mess up the heap internally, this function can be used to restore its properties as a min heap
+            
+        - heap_Type_from_array(const Type*, const uint32_t)
+            Returns a Heap_Type from a deep copy of the passed Type array.
+            Number of elements in array specified by second arg
+            
+        - heap_Type_hash(const Heap_Type*)
+            Returns 32 bit murmuhash generated from xoring the hashes of all elements together
+            
+        - heap_Type_expand(Heap_Type*)
+            Should not be used, the Heap will expand as needed, but it is there...
+            Doubles the underlying capacity of the Heap
+            
+        - heap_Type_push(Heap_Type*, const Type)
+            Pushes the passed item to the Heap, while maintaining heap order
+            
+        - heap_Type_pop(Heap_Type*, Type*)
+            Pops the minimal element off the Heap and copies it into the passed Type pointer.
+            Returns true if an element was popped.
+            
+        - heap_Type_peek(const Heap_Type*, Type*)
+            Copies the minimal element in the Heap into the passed Type pointer
+            
+        - heap_Type_free(Heap_Type*)
+            Frees the underlying array, and sets everything to 0
+            
+        - heap_foreach(Type, heap, lambda)
+            Iterates over all elements in the Heap and calls lambda passing each element as argument.
+            Type is not actually needed, it is only here for consistency with the other data types.
+            heap is the Heap_Type to iterate over.
+            lambda should be a function or macro taking a single parameter of Type
             
 ----
 
