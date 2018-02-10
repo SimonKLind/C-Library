@@ -9,6 +9,8 @@ A small library of C "template" data structures.
 
 [Stack.h](#stackh)
 
+[HashMap.h](#hashmaph)
+
 [TODO](#todo)
 
 So this is really just a library of common data structures that i otherwise find myself rewriting all the time.
