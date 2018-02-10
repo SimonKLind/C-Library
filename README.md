@@ -11,6 +11,8 @@ A small library of C "template" data structures.
 
 [HashMap.h](#hashmaph)
 
+[HashSet.h](#hashseth)
+
 [TODO](#todo)
 
 So this is really just a library of common data structures that i otherwise find myself rewriting all the time.
@@ -246,6 +248,50 @@ A HashMap implementation. Most operations should be O(1) in the general case.
             map is the map to be iterated over.
             lambda should be a function or macro taking two parameters, one of type Key, and the other of type Val.
             *General tip*: if you only want to use either of key or value, you can simply pass a lambda macro that ignores the other.
+            
+----
+
+# HashSet.h
+A HashSet implementation. Most operations should be O(1) in the general case.
+
+    Exposes functions:
+    
+        - init_hashset(Type, equals, hash)
+            Macro to generate code for HashSet_Type.
+            Type should be the type to be contained in the HashSet.
+            equals should be a function or macro taking a two parameters of Type returning true if they are to be deemed equal.
+            hash should be a function or macro taking a single parameter of Type and return a 32 bit hash value.
+            
+        - hashset_Type_new()
+            Returns an empty HashSet_Type
+            
+        - hashset_Type_copy(const HashSet_Type*)
+            Returns a deep copy of the passed HashSet_Type
+            
+        - hashset_Type_expand(HashSet_Type*)
+            Should not be used, the HashSet will expand on its own when needed, but it's there...
+            Will double the number of underlying buckets.
+            
+        - hashset_Type_put(HashSet_Type*, const Type)
+            Puts the passed item into the HashSet, only if it it does not already exist.
+            
+        - hashset_Type_remove(HashSet_Type*, const Type)
+            Removes the passed item from the HashSet, if it exists. Returns true if it was successfully removed.
+            
+        - hashset_Type_contains(const HashSet_Type*, const Type)
+            Returns true if the passed item is already in the HashSet
+            
+        - hashset_Type_to_array(const HashSet_Type*, Type *arr)
+            Copies all elements in HashSet into the Type array pointer passed as argument.
+            
+        - hashset_Type_free(HashSet_Type*)
+            Frees any resources used by the HashSet, and sets everything to 0
+            
+        - hashset_foreach(Type, set, lambda)
+            Iterates through all elements in the HashSet and calls lambda passing each element as argument.
+            Type should be the type of elements in the HashSet.
+            set is the HashSet to iterate over.
+            lambda should be a function or macro taking a single argument of Type.
     
 # TODO
   - Double Linked List
