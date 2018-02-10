@@ -9,7 +9,7 @@ A small library of C "template" data structures.
 
 [Stack.h](#stackh)
 
-[PriorityQueue.h](#priotityqueueh)
+[PriorityQueue.h](#priorityqueueh)
 
 [HashMap.h](#hashmaph)
 
