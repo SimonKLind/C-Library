@@ -191,6 +191,59 @@ A last in first out Stack. Pushing and popping will always be O(1). Does not imp
             Type should be the type of element in Stack.
             stack is the stack to iterate over.
             lambda should be a function or lambda taking one parameter of Type.
+            
+----
+
+# HashMap.h
+A HashMap implementation. Most operations should be O(1) in the general case. 
+
+    Exposes functions:
+    
+        - init_hashmap(Key, Val, key_equals, key_hash)
+            Macro to generate code for HashMap_Key_Val, where Key is the type of the keys, and Val is the type of the Values.
+            key_equals should be a function or macro taking two parameters of type Key and return true if they are deemed equal.
+            key_hash should be a function or macro taking a single parameter of type Key and return a 32 bit hash value.
+            As one could easily figure out, key equals will be used to test equality between keys, and key_hash will be used for indexing.
+            
+        - hashmap_Key_Val_new()
+            Returns an empty HashMap_Key_Val
+            
+        - hashmap_Key_Val_copy(const HashMap_Key_Val*)
+            Returns a deep copy of the passed HashMap_Key_Val
+            
+        - hashmap_Key_Val_expand(HashMap_Key_Val*)
+            Should not be used, the HashMap will expand on its own when needed, but it is there...
+            Will double the number of buckets in the underlying structure.
+            
+        - hashmap_Key_Val_put(HashMap_Key_Val, const Key, const Val)
+            Will store an entry for the passed Key along with the Val in the HashMap.
+            If such an entry already exists, the existing Val will be overwritten.
+            
+        - hashmap_Key_Val_get(const HashMap_Key_Val*, const Key, Val*)
+            If an entry for the passed Key exists, the corresponding Val will be copied into the passed Val pointer. Returns true if an entry was found.
+            
+        - hashmap_Key_Val_contains(const HashMap_Key_Val*, const Key)
+            Returns true if HashMap contains an entry for Key
+            
+        - hashmap_Key_Val_remove(HashMap_Key_Val*, const Key, Val*)
+            Will remove the entry in HashMap for Key. If it exists, the corresponding Val will be copied into the passed Val pointer, if the pointer is valid.
+            Returns true if operation was successful.
+            
+        - hashmap_Key_Val_to_array(const HashMap_Key_Val*, Key*, Val*)
+            Will copy keys and their respective values into the passed Key and Val pointers. Will only copy anything if the pointers are valid.
+            If only one Key pointer is valid, only keys will be copied. Same goes if only the Val pointer is valid.
+            Meaning this is a unified function for getting either a Key array, a Val array, or both.
+            
+        - hashmap_Key_Val_free(HashMap_Key_Val*)
+            Frees any resources used by the Hashmap and sets everything to 0
+            
+        - hashmap_foreach(Key, Val, map, lambda)
+            Iterates all the entries in the map and calls lambda with each key and value.
+            Key should be the type of the keys.
+            Val should be the type of the values.
+            map is the map to be iterated over.
+            lambda should be a function or macro taking two parameters, one of type Key, and the other of type Val.
+            *General tip*: if you only want to use either of key or value, you can simply pass a lambda macro that ignores the other.
     
 # TODO
   - Double Linked List
