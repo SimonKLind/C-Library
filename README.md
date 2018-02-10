@@ -13,6 +13,8 @@ A small library of C "template" data structures.
 
 [HashSet.h](#hashseth)
 
+[String.h](#stringh)
+
 [TODO](#todo)
 
 So this is really just a library of common data structures that i otherwise find myself rewriting all the time.
@@ -292,6 +294,80 @@ A HashSet implementation. Most operations should be O(1) in the general case.
             Type should be the type of elements in the HashSet.
             set is the HashSet to iterate over.
             lambda should be a function or macro taking a single argument of Type.
+            
+----
+
+# String.h
+A String implementation, with short string optimization. Any string that is less than 16 chars (or 16 including the null terminator) will be stored in place, 
+I could have gone up to 23, but then I cannot guarantee that it works regardless of endianness. This file exposes the struct String along with functions for it.
+
+    Exposes functions:
+        
+        - string_new()
+            Returns empty String
+        
+        - string_chars(String*)
+            Returns the underlying char array of the passed String
+            
+        - string_print(const String*)
+            Will write the contents of the passed String to stdout
+            
+        - string_hash(const String*)
+            Returns 32 bit murmuhash of the underlying char array
+            
+        - string_free(String*)
+            If any memory has been dynamically allocated by the String, it is freed, and the String is reset to its empty state.
+            
+        - string_copy(const String*)
+            Returns a deep copy of the passed String
+        
+        - string_from_chars(const char*)
+            Returns a String that will contain a deep copy of the passed char array
+            
+        - string_from_file(const char*)
+            Tries to open the file name passed as argument. On success it returns a String with the contents of the file.
+            If it fails to open the file, an empty String is returned.
+            
+        - string_write_to_file(const String*, const char*)
+            Tries to open the file name passed to write. The file will be cleared before write, and it will be created if it does not exist.
+            If the file cannot be opened or created, nothing happens.
+            
+        - string_reserve_short(String*, const uint64_t)
+            Should not be used, the String will expand as neccessary, but it's there...
+            If you really feel the need to use it, make sure the string passed is a short string, i.e flag == 0
+            Will allocate a new underlying char array with capacity equal to the first power of 2 greater than the passed minimum size.
+            
+        - string_reserve_long(String*, const uint64_t)
+            Should not be used, the String will expand as neccessary, but it is there...
+            If you really feel the need to use this, make sure the String passed is a long string, i.e flag == 1
+            Will allocate a new underlying char array with capacity equal to the first power of 2 greater than the passed minimum size
+            
+        - string_append_chars(String*, const char*)
+            Will append the char string passed to the String passed
+            
+        - string_append_string(String*, const String*)
+            Will append the contents of the const String to the String
+        
+        - string_append(String*, const char)
+            Will append the char to String
+            
+        - string_contains_chars(const String*, const char*)
+            Returns true if the pattern specified by the char array is found in the String
+            
+        - string_contains_string(const String*, const String*)
+            Returns true if the pattern specified by the Second String argument is found in the first String argument
+            
+        - string_compare_chars(const String*, const char*)
+            Returns a negative number if String is lexicographically less than chars
+            Returns zero if they are equals
+            Returns a positive number if chars is lexicographically less than String
+            
+        - string_compare_string(const String*, const String*)
+            Returns a negative number if first is lexicographically less than second
+            Returns zero if arguments are equal
+            Returns a positive number if second is lexicographically less than first
+            
+----
     
 # TODO
   - Double Linked List
