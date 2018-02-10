@@ -16,7 +16,6 @@ A dynamic array.
     Exposes functions:
     
         - init_array(Type)
-        
             Macro to generate code for an array containing elements of type Type. E.g init_array(int) will generate the type Array_int along with functions for Array_int,
             like array_int_new(), and array_int_push()
             
