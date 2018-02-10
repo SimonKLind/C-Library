@@ -15,7 +15,7 @@ A small library of C "template" data structures.
 
 [String.h](#stringh)
 
-[string_utils.h](#stringutilsh)
+[string_utils.h](#string_utilsh)
 
 [memory.h](#memoryh)
 
