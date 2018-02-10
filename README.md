@@ -7,6 +7,8 @@ A small library of C "template" data structures.
 
 [DoubleLinkedList.h](#doublelinkedlisth)
 
+[Stack.h](#stackh)
+
 [TODO](#todo)
 
 So this is really just a library of common data structures that i otherwise find myself rewriting all the time.
@@ -149,6 +151,46 @@ The big difference from the normal LinkedList is that this BiList supports pushi
             Type should be the type of the elements stored in the list.
             list is the list to iterate over
             lambda should be a function or macro taking a single parameter of Type
+            
+----
+
+# Stack.h
+A last in first out Stack. Pushing and popping will always be O(1). Does not implement random indexing.
+
+    Exposes functions:
+        
+        - init_stack(Type)
+            Generates code for Stack_Type, along with functions for it. E.g init_stack(int) would generate code for Stack_int along with functions such as stack_int_new()
+            
+        - stack_Type_new()
+            Returns an empty Stack_Type
+        
+        - stack_Type_copy(const Stack_Type*)
+            Returns a deep copy of the passed Stack
+            
+        - stack_Type_push(Stack_Type*, const Type)
+            Pushes the passed item to top of sSack
+            
+        - stack_Type_pop(Stack_Type*, Type*)
+            Pops the top element off the Stack and copies it into the passed Type pointer.
+            
+        - stack_Type_peek(Stack_Type*, Type*)
+            Copies the top element into the passed Type pointer.
+            
+        - stack_Type_to_array(const Stack_Type*)
+            Returns a newly allocated array containing all the elements of the Stack, in order top to bottom
+            
+        - stack_Type_hash(const Stack_Type*)
+            Returns 32 bit hash computed by xoring the murmur-hashes of each item in the Stack
+            
+        - stack_Type_free(Stack_Type*)
+            Frees any resources used by the Stack, and set everything to 0
+            
+        - stack_foreach(Type, stack, lambda)
+            Iterates over all the elements in stack and calls lambda with each, in order top to bottom.
+            Type should be the type of element in Stack.
+            stack is the stack to iterate over.
+            lambda should be a function or lambda taking one parameter of Type.
     
 # TODO
   - Double Linked List
