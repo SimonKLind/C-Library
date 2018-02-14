@@ -9,8 +9,6 @@
     #define LOAD_FACTOR 0.9
 #endif
 
-#define get_dist(index, origin, cap) (index-origin+cap*(index-origin >= cap))
-
 #define init_hashmap(Key, Val, key_equals, key_hash)    \
     typedef struct HashMap_##Key##_##Val##_Node {   \
         Key key;    \
