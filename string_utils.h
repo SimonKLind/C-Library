@@ -28,11 +28,12 @@ static inline char string_compare(const char *a, const char *b) {
     return *a-*b;
 }
 
-uint8_t string_contains(const char *text, const char *pattern) {
+char* string_contains(const char *text, const char *pattern) {
     #define haszero64(x) (((x) - 0x0101010101010101UL) & ~(x) & 0x8080808080808080UL)
     #define hasbyte64(x, b) haszero64((x) ^ (b))
     
     union {
+        char *ret;
         const uint8_t *u8;
         const uint64_t *u64;
     } text_ptr;
@@ -48,7 +49,7 @@ uint8_t string_contains(const char *text, const char *pattern) {
         i=1;
         while(text_ptr.u8[i] && pattern_u8[i] && text_ptr.u8[i] == pattern_u8[i]) ++i;
         i -= pattern_u8[i] == 0;
-        if(pattern_u8[i] == text_ptr.u8[i]) return 1;
+        if(pattern_u8[i] == text_ptr.u8[i]) return text_ptr.ret;
         ++text_ptr.u8;
     }
     return 0;

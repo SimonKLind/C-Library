@@ -23,7 +23,23 @@ static inline String string_new() {
     return (String) { 0 };
 }
 
+String string_with_capacity(const uint64_t min) {
+    if(min < 16) return (String) { 0 };
+    uint64_t cap = 32;
+    while(cap <= min) cap <<= 1;
+    String str;
+    str.long_str = (char*) calloc(cap, 1);
+    str.cap = cap;
+    str.length = 0;
+    str.flag = 1;
+    return str;
+}
+
 static inline char* string_chars(String *self) {
+    return self->flag ? self->long_str : self->short_str;
+}
+
+static inline const char* string_const_chars(const String *self) {
     return self->flag ? self->long_str : self->short_str;
 }
 
@@ -92,6 +108,168 @@ void string_write_to_file(const String *self, const char *filename) {
         write(fd, self->flag ? self->long_str : self->short_str, self->length);
         close(fd);
     }
+}
+
+void string_clear(String *self) {
+    if(self->flag) {
+        clear(self->long_str, self->length);
+    } else {
+        *self = (String) { 0 };
+    }
+    self->length = 0;
+}
+
+void string_assign_chars(String *self, const char *chars) {
+    const uint64_t length = string_length(chars);
+    if(self->flag) {
+        if(length >= self->cap) {
+            free(self->long_str);
+            while(self->cap <= length) self->length <<= 1;
+            self->long_str = (char*) calloc(self->cap, 1);
+        } else {
+            clear(self->long_str, self->length);
+        }
+        copy(self->long_str, chars, length);
+    } else {
+        if(length < 16) {
+            copy(self->short_str, chars, length);
+        } else {
+            self->cap = 32;
+            while(self->cap <= length) self->cap <<= 1;
+            self->long_str = (char*) calloc(self->cap, 1);
+            copy(self->long_str, chars, length);
+        }
+    }
+    self->length = length;
+}
+
+void string_assign_string(String *self, const String *other) {
+    switch(self->flag | (other->flag << 1)) {
+        case 3: // Both long
+            if(other->length >= self->cap) {
+                free(self->long_str);
+                while(self->cap <= other->length) self->cap <<= 1;
+                self->long_str = (char*) calloc(self->cap, 1);
+            } else {
+                clear(self->long_str, self->length);
+            }
+            copy(self->long_str, other->long_str, other->length);
+            break;
+        case 2: // Only other long
+            self->cap = 32;
+            self->flag = 1;
+            while(self->cap <= other->length) self->cap <<= 1;
+            self->long_str = (char*) calloc(self->cap, 1);
+            copy(self->long_str, other->long_str, other->length);
+            break;
+        case 1: // Only self long
+            clear(self->long_str, self->length);
+            copy(self->long_str, other->short_str, other->length);
+            break;
+        case 0: // Neither long
+            *self = (String) { 0 };
+            copy(self->short_str, other->short_str, other->length);
+            break;
+    }
+    self->length = other->length;
+}
+
+void string_getline(String *self) {
+    char buf[8192];
+    int len = read(STDIN, buf, 8191) - 1;
+    if(len > 0) {
+        if(self->flag) {
+            if(len >= self->cap) {
+                while(self->cap <= len) self->cap <<= 1;
+                free(self->long_str);
+                self->long_str = (char*) calloc(self->cap, 1);
+            } else {
+                clear(self->long_str, self->length);
+            }
+            copy(self->long_str, buf, len);
+        } else {
+            if(len < 16) {
+                self->cap = 32;
+                self->flag = 1;
+                while(self->cap <= len) self->cap <<= 1;
+                self->long_str = (char*) calloc(self->cap, 1);
+                copy(self->long_str, buf, len);
+            } else {
+                *self = (String) { 0 };
+                copy(self->short_str, buf, len);
+            }
+        }
+        self->length = len;
+    }
+}
+
+String* string_split_chars(const String *self, const char *pattern, uint32_t *num_splits) {
+    const uint64_t len_p = string_length(pattern);
+    const char *str = self->flag ? self->long_str : self->short_str;
+    const char *ptr = str;
+    uint32_t num = 0;
+    while((ptr = string_contains(ptr, pattern))) {
+        ++num;
+        ptr += len_p;
+    }
+    ++num;
+    *num_splits = num;
+    if(num == 0) return 0;
+    ptr = str;
+    String *splits = (String*) calloc(num, sizeof(String));
+    uint32_t i=0;
+    while((ptr = string_contains(str, pattern))) {
+        splits[i].length = ptr-str;
+        if(splits[i].length < 16) {
+            copy(splits[i].short_str, str, splits[i].length);
+        } else {
+            splits[i].flag = 1;
+            splits[i].cap = 32;
+            while(splits[i].cap <= splits[i].length) splits[i].cap <<= 1;
+            splits[i].long_str = (char*) calloc(splits[i].cap, 1);
+            copy(splits[i].long_str, str, splits[i].length);
+        }
+        str = ptr+len_p;
+        ++i;
+    }
+    splits[i].length = ((self->flag ? self->long_str : self->short_str)+self->length)-str;
+    if(splits[i].length < 16) {
+        copy(splits[i].short_str, str, splits[i].length);
+    } else {
+        splits[i].flag = 1;
+        splits[i].cap = 32;
+        while(splits[i].cap <= splits[i].length) splits[i].cap <<= 1;
+        splits[i].long_str = (char*) calloc(splits[i].cap, 1);
+        copy(splits[i].long_str, str, splits[i].length);
+    }
+    return splits;
+}
+
+void string_to_lower(String *self) {
+#define is_upper(c) (c >= 'A' && c <= 'Z')
+    char *str = self->flag ? self->long_str : self->short_str;
+    for(uint64_t i=0; i<self->length; ++i) {
+        if(is_upper(str[i])) str[i] += 'a'-'A';
+    }
+}
+
+void string_to_upper(String *self) {
+#define is_lower(c) (c >= 'a' && c <= 'z')
+    char *str = self->flag ? self->long_str : self->short_str;
+    for(uint64_t i=0; i< self->length; ++i) {
+        if(is_lower(str[i])) str[i] -= 'a'-'A';
+    }
+}
+
+void string_remove_whitespace(String *self) {
+    char *str = self->flag ? self->long_str : self->short_str;
+    uint64_t i=0, j=0;
+    while(j < self->length) {
+        while(str[j] <= 32) ++j;
+        str[i++] = str[j++];
+    }
+    self->length = i;
+    while(i < j) str[i++] = 0;
 }
 
 void string_reserve_short(String *self, const uint64_t size) {
@@ -168,11 +346,11 @@ void string_append(String *self, const char c) {
     }
 }
 
-static inline uint8_t string_contains_chars(const String *self, const char *chars) {
+static inline char* string_contains_chars(const String *self, const char *chars) {
     return string_contains(self->flag ? self->long_str : self->short_str, chars);
 }
 
-static inline uint8_t string_contains_string(const String *self, const String *other) {
+static inline char* string_contains_string(const String *self, const String *other) {
     return string_contains(self->flag ? self->long_str : self->short_str, other->flag ? other->long_str : other->short_str);
 }
 
