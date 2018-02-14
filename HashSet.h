@@ -5,88 +5,94 @@
 #include <std/memory.h>
 #include <std/Hash.h>
 
-#ifndef RESIZE_THRESHOLD
-    #define RESIZE_THRESHOLD 0.75
+#ifndef LOAD_FACTOR
+    #define LOAD_FACTOR 0.9
 #endif
 
 #define init_hashset(Type, equals, hash)    \
     typedef struct HashSet_##Type##_Node {  \
         Type item;  \
-        struct HashSet_##Type##_Node *next; \
+        uint32_t hash;  \
+        uint16_t active;    \
+        uint16_t alive; \
     } HashSet_##Type##_Node;    \
     \
     typedef struct HashSet_##Type { \
-        HashSet_##Type##_Node **buckets;    \
+        HashSet_##Type##_Node *nodes;   \
         uint32_t size;  \
-        uint32_t num_buckets;   \
+        uint32_t cap;   \
     } HashSet_##Type;   \
     \
     static inline HashSet_##Type hashset_##Type##_new() {   \
-        return (HashSet_##Type) { (HashSet_##Type##_Node**) calloc(16, sizeof(HashSet_##Type##_Node*)), 0, 16 };    \
+        return (HashSet_##Type) { (HashSet_##Type##_Node*) calloc(16, sizeof(HashSet_##Type##_Node)), 0, 16 };  \
     }   \
     \
-    HashSet_##Type hashset_##Type##_copy(const HashSet_##Type *other) { \
-        HashSet_##Type set = (HashSet_##Type) { \
-            (HashSet_##Type##_Node**) calloc(other->num_buckets, sizeof(HashSet_##Type##_Node*)),   \
-            other->size,    \
-            other->num_buckets  \
-        };  \
-        HashSet_##Type##_Node *new_temp;    \
-        for(uint32_t i=0; i<other->num_buckets; ++i) {  \
-            for(HashSet_##Type##_Node *temp = other->buckets[i]; temp; temp = temp->next) { \
-                new_temp = (HashSet_##Type##_Node*) malloc(sizeof(HashSet_##Type##_Node));  \
-                *new_temp = (HashSet_##Type##_Node) { temp->item, set.buckets[i] };  \
-                set.buckets[i] = new_temp;  \
-            }   \
-        }   \
+    static inline HashSet_##Type hashset_##Type##_copy(const HashSet_##Type *other) {    \
+        HashSet_##Type set = { (HashSet_##Type##_Node*) calloc(other->cap, sizeof(HashSet_##Type##_Node)), other->size, other->cap };   \
+        copy(set.nodes, other->nodes, other->cap*sizeof(HashSet_##Type##_Node)); \
         return set; \
     }   \
     \
     void hashset_##Type##_expand(HashSet_##Type *self) {    \
-        HashSet_##Type##_Node **old_buckets = self->buckets;    \
-        const uint32_t old_num_buckets = self->num_buckets; \
-        self->num_buckets <<= 1;    \
-        self->buckets = (HashSet_##Type##_Node**) calloc(self->num_buckets, sizeof(HashSet_##Type##_Node*));    \
-        HashSet_##Type##_Node *temp;    \
-        for(uint32_t i=0, index; i<old_num_buckets; ++i) {  \
-            while(old_buckets[i]) { \
-                index = hash(old_buckets[i]->item)&(self->num_buckets-1);   \
-                temp = old_buckets[i];  \
-                old_buckets[i] = old_buckets[i]->next;  \
-                temp->next = self->buckets[index];  \
-                self->buckets[index] = temp;    \
+        HashSet_##Type##_Node *old = self->nodes;   \
+        const uint32_t old_cap = self->cap; \
+        self->cap <<= 1;    \
+        self->nodes = (HashSet_##Type##_Node*) calloc(self->cap, sizeof(HashSet_##Type##_Node));    \
+        const uint32_t mask = self->cap-1;  \
+        HashSet_##Type##_Node temp; \
+        for(uint32_t i=0, index; i<old_cap; ++i) {  \
+            if(!old[i].active) continue;    \
+            index = old[i].hash&mask;   \
+            for(uint32_t dist = 0; self->nodes[index].active; ++dist) { \
+                if(index-(self->nodes[index].hash&mask)+self->cap*(index-(self->nodes[index].hash&mask)>=self->cap) < dist) {   \
+                    temp = self->nodes[index];  \
+                    self->nodes[index] = old[i];    \
+                    old[i] = temp;  \
+                }   \
+                index = (index+1)&mask; \
             }   \
+            self->nodes[index] = old[i];    \
         }   \
-        free(old_buckets);  \
+        free(old);  \
     }   \
     \
-    void hashset_##Type##_put(HashSet_##Type *self, Type item) {    \
-        const uint32_t index = hash(item)&(self->num_buckets-1);    \
-        HashSet_##Type##_Node *temp = self->buckets[index]; \
-        while(temp) {   \
-            if(equals(temp->item, item)) return;  \
-            temp = temp->next;  \
+    void hashset_##Type##_put(HashSet_##Type *self, const Type item) {  \
+        const uint32_t mask = self->cap-1;  \
+        const uint32_t hash = hash(item);   \
+        uint32_t index = hash&mask; \
+        HashSet_##Type##_Node current = { item, hash, 1, 1 }, temp;  \
+        for(uint32_t dist = 0; self->nodes[index].active; ++dist) { \
+            if(self->nodes[index].hash == hash && equals(self->nodes[index].item, item)) return;    \
+            else if(index-(self->nodes[index].hash&mask)+self->cap*(index-(self->nodes[index].hash&mask)>=self->cap) < dist) {  \
+                temp = self->nodes[index];  \
+                self->nodes[index] = current;   \
+                current = temp; \
+            }   \
+            index = (index+1)&mask; \
         }   \
-        temp = self->buckets[index];    \
-        self->buckets[index] = (HashSet_##Type##_Node*) malloc(sizeof(HashSet_##Type##_Node));  \
-        *self->buckets[index] = (HashSet_##Type##_Node) { item, temp }; \
-        if(++self->size >= RESIZE_THRESHOLD*self->num_buckets) hashset_##Type##_expand(self);   \
+        self->nodes[index] = current;   \
+        if(++self->size >= LOAD_FACTOR*self->cap) hashset_##Type##_expand(self);    \
     }   \
     \
-    uint8_t hashset_##Type##_remove(HashSet_##Type *self, Type item) {  \
-        const uint32_t index = hash(item)&(self->num_buckets-1);    \
-        if(!self->buckets[index]) return 0; \
-        if(equals(self->buckets[index]->item, item)) {  \
-            HashSet_##Type##_Node *temp = self->buckets[index]; \
-            self->buckets[index] = self->buckets[index]->next;  \
-            free(temp); \
-            --self->size;   \
-            return 1;   \
+    uint8_t hashset_##Type##_contains(const HashSet_##Type *self, const Type item) {    \
+        const uint32_t hash = hash(item);   \
+        const uint32_t mask = self->cap-1;  \
+        for(uint32_t index = hash&mask, dist = 0;   \
+            self->nodes[index].alive && index-(self->nodes[index].hash&mask)+self->cap*(index-(self->nodes[index].hash&mask)>=self->cap) >= dist;   \
+            index = (index+1)&mask, ++dist) {   \
+            if(self->nodes[index].active && self->nodes[index].hash == hash && equals(self->nodes[index].item, item)) return 1; \
         }   \
-        for(HashSet_##Type##_Node *temp = self->buckets[index], *next = self->buckets[index]->next; next; temp = next, next = next->next) { \
-            if(equals(next->item, item)) {  \
-                temp->next = next->next;    \
-                free(next); \
+        return 0;   \
+    }   \
+    \
+    uint8_t hashset_##Type##_remove(HashSet_##Type *self, const Type item) {  \
+        const uint32_t hash = hash(item);   \
+        const uint32_t mask = self->cap-1;  \
+        for(uint32_t index = hash&mask, dist = 0;   \
+            self->nodes[index].alive && index-(self->nodes[index].hash&mask)+self->cap*(index-(self->nodes[index].hash&mask)>=self->cap) >= dist;   \
+            index = (index+1)&mask, ++dist) {   \
+            if(self->nodes[index].active && self->nodes[index].hash == hash && equals(self->nodes[index].item, item)) { \
+                self->nodes[index].active = 0;  \
                 --self->size;   \
                 return 1;   \
             }   \
@@ -94,39 +100,21 @@
         return 0;   \
     }   \
     \
-    uint8_t hashset_##Type##_contains(const HashSet_##Type *self, Type item) {  \
-        const uint32_t index = hash(item)&(self->num_buckets-1);    \
-        for(HashSet_##Type##_Node *temp = self->buckets[index]; temp; temp = temp->next) {  \
-            if(equals(temp->item, item)) return 1;  \
+    static inline void hashset_##Type##_to_array(const HashSet_##Type *self, Type *arr) {   \
+        for(uint32_t i=0; i<self->cap; ++i) {   \
+            if(!self->nodes[i].active) continue;    \
+            *arr++ = self->nodes[i].item;    \
         }   \
-        return 0;   \
     }   \
     \
-    void hashset_##Type##_to_array(const HashSet_##Type *self, Type *arr) { \
-        if(!arr) return;    \
-        for(uint32_t i=0; i<self->num_buckets; ++i) {   \
-            for(HashSet_##Type##_Node *temp = self->buckets[i]; temp; temp = temp->next) {  \
-                *arr++ = temp->item;    \
-            }   \
-        }   \
-    }   \
-        \
-    void hashset_##Type##_free(HashSet_##Type *self) {  \
-        for(uint32_t i=0; i<self->num_buckets; ++i) {   \
-            for(HashSet_##Type##_Node *temp = self->buckets[i]; temp; temp = self->buckets[i]) {    \
-                self->buckets[i] = self->buckets[i]->next;  \
-                free(temp); \
-            }   \
-        }   \
-        free(self->buckets);    \
-        *self = (HashSet_##Type) { 0 };   \
+    static inline void hashset_##Type##_free(HashSet_##Type *self) {    \
+        free(self->nodes);  \
     }   \
 
 #define hashset_foreach(Type, set, lambda) {    \
-    for(uint32_t _i = 0; _i < (set).num_buckets; ++_i) {    \
-        for(HashSet_##Type##_Node *_temp = (set).buckets[_i]; _temp; _temp = _temp->next) {  \
-            lambda(_temp->item);    \
-        }   \
+    for(uint32_t _i = 0; _i<(set).cap; ++_i) {  \
+        if(!(set).nodes[_i].active) continue;   \
+        lambda((set).nodes[_i].item);   \
     }   \
 }   \
 

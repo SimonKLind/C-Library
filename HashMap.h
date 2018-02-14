@@ -5,82 +5,88 @@
 #include <stdint.h>
 #include <std/Hash.h>
 
-#ifndef RESIZE_THRESHOLD
-    #define RESIZE_THRESHOLD 0.75
+#ifndef LOAD_FACTOR
+    #define LOAD_FACTOR 0.9
 #endif
+
+#define get_dist(index, origin, cap) (index-origin+cap*(index-origin >= cap))
 
 #define init_hashmap(Key, Val, key_equals, key_hash)    \
     typedef struct HashMap_##Key##_##Val##_Node {   \
         Key key;    \
         Val val;    \
-        struct HashMap_##Key##_##Val##_Node *next;  \
+        uint32_t hash;  \
+        uint16_t active;    \
+        uint16_t alive; \
     } HashMap_##Key##_##Val##_Node; \
     \
     typedef struct HashMap_##Key##_##Val {  \
-        HashMap_##Key##_##Val##_Node **buckets; \
-        uint32_t num_buckets;   \
+        HashMap_##Key##_##Val##_Node *nodes;    \
         uint32_t size;  \
+        uint32_t cap;   \
     } HashMap_##Key##_##Val;    \
     \
     static inline HashMap_##Key##_##Val hashmap_##Key##_##Val##_new() { \
-        return (HashMap_##Key##_##Val) { (HashMap_##Key##_##Val##_Node**) calloc(16, sizeof(HashMap_##Key##_##Val##_Node*)), 16, 0 };   \
+        return (HashMap_##Key##_##Val) { (HashMap_##Key##_##Val##_Node*) calloc(16, sizeof(HashMap_##Key##_##Val##_Node)), 0, 16 }; \
     }   \
     \
-    HashMap_##Key##_##Val hashmap_##Key##_##Val##_copy(const HashMap_##Key##_##Val *other) {    \
-        HashMap_##Key##_##Val map = (HashMap_##Key##_##Val) {   \
-            (HashMap_##Key##_##Val##_Node**) calloc(other->num_buckets, sizeof(HashMap_##Key##_##Val##_Node*)), \
-            other->num_buckets, \
-            other->size \
-        };  \
-        HashMap_##Key##_##Val##_Node *new_temp; \
-        for(uint32_t i=0; i<other->num_buckets; ++i) {  \
-            for(HashMap_##Key##_##Val##_Node *temp = other->buckets[i]; temp; temp = temp->next) {  \
-                new_temp = (HashMap_##Key##_##Val##_Node*) malloc(sizeof(HashMap_##Key##_##Val##_Node));    \
-                *new_temp = (HashMap_##Key##_##Val##_Node) { temp->key, temp->val, map.buckets[i] };    \
-                map.buckets[i] = new_temp;  \
-            }   \
-        }   \
+    static inline HashMap_##Key##_##Val hashmap_##Key##_##Val##_copy(const HashMap_##Key##_##Val *other) {  \
+        HashMap_##Key##_##Val map = { (HashMap_##Key##_##Val##_Node*) calloc(other->cap, sizeof(HashMap_##Key##_##Val##_Node)), other->size, other->cap };  \
+        copy(map.nodes, other->nodes, other->cap*sizeof(HashMap_##Key##_##Val##_Node)); \
         return map; \
     }   \
     \
     void hashmap_##Key##_##Val##_expand(HashMap_##Key##_##Val *self) {  \
-        HashMap_##Key##_##Val##_Node **old_buckets = self->buckets; \
-        const uint32_t old_num_buckets = self->num_buckets;   \
-        self->num_buckets <<= 1;    \
-        self->buckets = (HashMap_##Key##_##Val##_Node**) calloc(self->num_buckets, sizeof(HashMap_##Key##_##Val##_Node*));  \
-        HashMap_##Key##_##Val##_Node *temp; \
-        for(uint32_t i=0, index; i<old_num_buckets; ++i) {  \
-            while(old_buckets[i]) { \
-                index = key_hash(old_buckets[i]->key)&(self->num_buckets-1);    \
-                temp = old_buckets[i];  \
-                old_buckets[i] = old_buckets[i]->next;  \
-                temp->next = self->buckets[index];  \
-                self->buckets[index] = temp;    \
+        HashMap_##Key##_##Val##_Node *old = self->nodes;    \
+        const uint32_t old_cap = self->cap; \
+        self->cap <<= 1;    \
+        self->nodes = (HashMap_##Key##_##Val##_Node*) calloc(self->cap, sizeof(HashMap_##Key##_##Val##_Node));  \
+        const uint32_t mask = self->cap-1;  \
+        HashMap_##Key##_##Val##_Node temp;  \
+        for(uint32_t i=0, index; i<old_cap; ++i) { \
+            if(!old[i].active) continue;    \
+            index = old[i].hash&mask;   \
+            for(uint32_t dist = 0; self->nodes[index].active; ++dist) { \
+                if(index-(self->nodes[index].hash&mask)+self->cap*(index-(self->nodes[index].hash&mask)>=self->cap) < dist) {   \
+                    temp = self->nodes[index];  \
+                    self->nodes[index] = old[i];    \
+                    old[i] = temp;  \
+                }   \
+                index = (index+1)&mask; \
             }   \
+            self->nodes[index] = old[i];    \
         }   \
-        free(old_buckets);  \
+        free(old);  \
     }   \
     \
     void hashmap_##Key##_##Val##_put(HashMap_##Key##_##Val *self, const Key key, const Val val) {   \
-        const uint32_t index = key_hash(key)&(self->num_buckets-1); \
-        HashMap_##Key##_##Val##_Node *temp; \
-        for(temp = self->buckets[index]; temp; temp = temp->next) { \
-            if(key_equals(temp->key, key)) {    \
-                temp->val = val;    \
+        const uint32_t mask = self->cap-1;  \
+        const uint32_t hash = key_hash(key);    \
+        uint32_t index = hash&mask; \
+        HashMap_##Key##_##Val##_Node current = { key, val, hash, 1, 1 }, temp; \
+        for(uint32_t dist = 0; self->nodes[index].active; ++dist) { \
+            if(self->nodes[index].hash == hash && key_equals(self->nodes[index].key, key)) {    \
+                self->nodes[index].val = val;   \
                 return; \
+            } else if(index-(self->nodes[index].hash&mask)+self->cap*(index-(self->nodes[index].hash&mask)>=self->cap) < dist) {    \
+                temp = self->nodes[index];  \
+                self->nodes[index] = current;   \
+                current = temp; \
             }   \
+            index = (index+1)&mask; \
         }   \
-        temp = self->buckets[index];    \
-        self->buckets[index] = (HashMap_##Key##_##Val##_Node*) malloc(sizeof(HashMap_##Key##_##Val##_Node));    \
-        *self->buckets[index] = (HashMap_##Key##_##Val##_Node) { key, val, temp };  \
-        if(++self->size >= RESIZE_THRESHOLD*self->num_buckets) hashmap_##Key##_##Val##_expand(self);    \
+        self->nodes[index] = current;   \
+        if(++self->size >= LOAD_FACTOR*self->cap) hashmap_##Key##_##Val##_expand(self); \
     }   \
     \
     uint8_t hashmap_##Key##_##Val##_get(const HashMap_##Key##_##Val *self, const Key key, Val *val) {   \
-        const uint32_t index = key_hash(key)&(self->num_buckets-1); \
-        for(HashMap_##Key##_##Val##_Node *temp = self->buckets[index]; temp; temp = temp->next) {   \
-            if(key_equals(temp->key, key)) {    \
-                *val = temp->val;   \
+        const uint32_t hash = key_hash(key);    \
+        const uint32_t mask = self->cap-1;  \
+        for(uint32_t index = hash&mask, dist = 0;   \
+            self->nodes[index].alive && index-(self->nodes[index].hash&mask)+self->cap*(index-(self->nodes[index].hash&mask)>=self->cap) >= dist;    \
+            index = (index+1)&mask, ++dist) {   \
+            if(self->nodes[index].active && self->nodes[index].hash == hash && key_equals(self->nodes[index].key, key)) {    \
+                *val = self->nodes[index].val;  \
                 return 1;   \
             }   \
         }   \
@@ -88,29 +94,25 @@
     }   \
     \
     uint8_t hashmap_##Key##_##Val##_contains(const HashMap_##Key##_##Val *self, const Key key) {    \
-        const uint32_t index = key_hash(key)&(self->num_buckets-1); \
-        for(HashMap_##Key##_##Val##_Node *temp = self->buckets[index]; temp; temp = temp->next) {   \
-            if(key_equals(temp->key, key)) return 1;    \
+        const uint32_t hash = key_hash(key);    \
+        const uint32_t mask = self->cap-1;  \
+        for(uint32_t index = hash&mask, dist = 0;   \
+            self->nodes[index].alive && index-(self->nodes[index].hash&mask)+self->cap*(index-(self->nodes[index].hash&mask)>=self->cap) >= dist;    \
+            index = (index+1)&mask, ++dist) {   \
+            if(self->nodes[index].active && self->nodes[index].hash == hash && key_equals(self->nodes[index].key, key)) return 1;    \
         }   \
         return 0;   \
     }   \
     \
     uint8_t hashmap_##Key##_##Val##_remove(HashMap_##Key##_##Val *self, const Key key, Val *val) {  \
-        const uint32_t index = key_hash(key)&(self->num_buckets-1); \
-        if(!self->buckets[index]) return 0; \
-        if(key_equals(self->buckets[index]->key, key)) {    \
-            if(val) *val = self->buckets[index]->val;   \
-            HashMap_##Key##_##Val##_Node *temp = self->buckets[index];    \
-            self->buckets[index] = self->buckets[index]->next;  \
-            free(temp); \
-            --self->size;   \
-            return 1;   \
-        }   \
-        for(HashMap_##Key##_##Val##_Node *temp = self->buckets[index], *next = self->buckets[index]->next; next; temp = next, next = next->next) {   \
-            if(key_equals(next->key, key)) {    \
-                if(val) *val = next->val;   \
-                temp->next = next->next;    \
-                free(next);   \
+        const uint32_t hash = key_hash(key);    \
+        const uint32_t mask = self->cap-1;  \
+        for(uint32_t index = hash&mask, dist = 0;   \
+            self->nodes[index].alive && index-(self->nodes[index].hash&mask)+self->cap*(index-(self->nodes[index].hash&mask)>=self->cap) >= dist;    \
+            index = (index+1)&mask, ++dist) {   \
+            if(self->nodes[index].active && self->nodes[index].hash == hash && key_equals(self->nodes[index].key, key)) {    \
+                if(val) *val = self->nodes[index].val;  \
+                self->nodes[index].active = 0;  \
                 --self->size;   \
                 return 1;   \
             }   \
@@ -119,44 +121,36 @@
     }   \
     \
     void hashmap_##Key##_##Val##_to_array(const HashMap_##Key##_##Val *self, Key *keys, Val *vals) {    \
-        if(keys && vals) { /* Both seem valid, copy into both */    \
-            for(uint32_t i=0; i<self->num_buckets; ++i) {   \
-                for(const HashMap_##Key##_##Val##_Node *temp = self->buckets[i]; temp; temp = temp->next) { \
-                    *keys++ = temp->key;    \
-                    *vals++ = temp->val;    \
+        switch((keys != 0) | ((vals != 0) << 1)) {  \
+            case 3: \
+                for(uint32_t i=0; i<self->cap; ++i) {   \
+                    if(!self->nodes[i].active) continue;    \
+                    *keys++ = self->nodes[i].key;   \
+                    *vals++ = self->nodes[i].val;   \
                 }   \
-            }   \
-        } else if(keys) { /* Only keys seem valid, copy only into keys */   \
-            for(uint32_t i=0; i<self->num_buckets; ++i) {   \
-                for(const HashMap_##Key##_##Val##_Node *temp = self->buckets[i]; temp; temp = temp->next) { \
-                    *keys++ = temp->key;    \
+                break;  \
+            case 2: \
+                for(uint32_t i=0; i<self->cap; ++i) {   \
+                    if(!self->nodes[i].active) continue;    \
+                    *vals++ = self->nodes[i].val;   \
                 }   \
-            }   \
-        } else if(vals) { /* Only vals seem valid, copy only into vals */   \
-            for(uint32_t i=0; i<self->num_buckets; ++i) {   \
-                for(const HashMap_##Key##_##Val##_Node *temp = self->buckets[i]; temp; temp = temp->next) { \
-                    *vals++ = temp->val;    \
+                break;  \
+            case 1: \
+                for(uint32_t i=0; i<self->cap; ++i) {   \
+                    if(!self->nodes[i].active) continue;    \
+                    *keys++ = self->nodes[i].key;  \
                 }   \
-            }   \
         }   \
     }   \
     \
-    void hashmap_##Key##_##Val##_free(HashMap_##Key##_##Val *self) {    \
-        for(uint32_t i=0; i<self->num_buckets; ++i) {   \
-            for(HashMap_##Key##_##Val##_Node *temp = self->buckets[i]; temp; temp = self->buckets[i]) { \
-                self->buckets[i] = self->buckets[i]->next;  \
-                free(temp); \
-            }   \
-        }   \
-        free(self->buckets);    \
-        *self = (HashMap_##Key##_##Val) { 0 };  \
+    static inline void hashmap_##Key##_##Val##_free(HashMap_##Key##_##Val *self) {    \
+        free(self->nodes);  \
     }   \
 
 #define hashmap_foreach(Key, Val, map, lambda) {    \
-    for(uint32_t _i = 0; _i<(map).num_buckets; ++_i) {  \
-        for(HashMap_##Key##_##Val##_Node *_temp = (map).buckets[_i]; _temp; _temp = _temp->next) {   \
-            lambda(_temp->key, _temp->val); \
-        }   \
+    for(uint32_t _i=0; _i<(map).cap; ++_i) {    \
+        if(!(map).nodes[_i].active) continue;   \
+        lambda((map).nodes[_i].key, (map).nodes[_i].val);   \
     }   \
 }   \
 
